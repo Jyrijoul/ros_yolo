@@ -1,17 +1,35 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 
 import roslib
 import rospy
 from std_msgs.msg import Header
-from std_msgs.msg import String
+from std_msgs.msg import String, Int32MultiArray
 from sensor_msgs.msg import CompressedImage
 from sensor_msgs.msg import Image
 IMAGE_WIDTH=1241
 IMAGE_HEIGHT=376
 
+# Don't refresh without key presses?
+freeze_detection = False
+# Publish bounding box data even when no objects found?
+publish_empty = False
+
 # Some magic code to use Python3
 import sys
-sys.path.remove('/opt/ros/melodic/lib/python2.7/dist-packages')
+#sys.path.remove('/opt/ros/melodic/lib/python2.7/dist-packages')
+#print(sys.version, sys.version_info)
+import os
+
+print(os.path.dirname(os.path.abspath(__file__)))
+
+sys.path.extend(['/home/jyri/anaconda3/lib/python38.zip', 
+                '/home/jyri/anaconda3/lib/python3.8', 
+                '/home/jyri/anaconda3/lib/python3.8/lib-dynload', 
+                '/home/jyri/anaconda3/lib/python3.8/site-packages',
+                '/home/jyri/catkin_ws/src/ROS_Yolo2D/scripts'])
+# print(os.environ['PYTHONPATH'])
+print(sys.path)
+
 
 # Necessary Imports
 import os
@@ -114,6 +132,8 @@ def detect(img):
     save_conf = 'store_true'
     time3 = time.time()
 
+    bb_to_publish = []
+
     for i, det in enumerate(pred):  # detections per image
         p, s, im0 = path, '', im0s
         s += '%gx%g ' % img.shape[2:]  # print string
@@ -134,6 +154,18 @@ def detect(img):
                 if view_img:  # Add bbox to image
                     label = '%s %.2f' % (names[int(cls)], conf)
                     plot_one_box(xyxy, im0, label=label, color=[0,255,0], line_thickness=3)
+                    x = xyxy
+                    c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
+                    # print("XYXY:", c1, c2)
+                    bb_to_publish.extend([c1[0], c1[1], c2[0], c2[1]])
+
+    # Package the bounding boxes into one list, 4 values constituting one box.
+    if bb_to_publish or publish_empty:
+        publish_bounding_boxes(bb_to_publish)
+    # else:
+    #     # Also publish an empty list if not detecting anything.
+    #     publish_bounding_boxes([])
+
     time4 = time.time()
     print('************')
     print('2-1', time2 - time1)
@@ -143,7 +175,19 @@ def detect(img):
     out_img = im0[:, :, [2, 1, 0]]
     ros_image=out_img
     cv2.imshow('YOLOV5', out_img)
-    a = cv2.waitKey(1)
+
+    if freeze_detection:
+        k = cv2.waitKey(0) & 0xFF
+        if k == ord("q"):
+            # Not sure whether the next line is necessary...
+            rospy.loginfo("Pressed 'q' to shut down.")
+            rospy.signal_shutdown("Pressed 'q' to shut down.")
+    else:
+        k = cv2.waitKey(1) & 0xFF
+        if k == ord("q"):
+            # Not sure whether the next line is necessary...
+            rospy.loginfo("Pressed 'q' to shut down.")
+            rospy.signal_shutdown("Pressed 'q' to shut down.")
     #### Create CompressedIamge ####
     publish_image(im0)
 
@@ -165,6 +209,11 @@ def publish_image(imgdata):
     image_temp.step=1241*3
     image_pub.publish(image_temp)
 
+def publish_bounding_boxes(xyxy):
+    message = Int32MultiArray()
+    message.data = xyxy
+    bb_pub.publish(message)
+
 if __name__ == '__main__':
     set_logging()
     device = ''
@@ -181,4 +230,5 @@ if __name__ == '__main__':
     image_topic_1 = "/camera/color/image_raw"
     rospy.Subscriber(image_topic_1, Image, image_callback_1, queue_size=1, buff_size=52428800)
     image_pub = rospy.Publisher('/yolo_result_out', Image, queue_size=1)  
+    bb_pub = rospy.Publisher('/yolo_bounding_box', Int32MultiArray, queue_size=1)
     rospy.spin()
