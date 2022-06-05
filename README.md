@@ -1,15 +1,14 @@
-# To get the object detection working with Realsense:
+# ROS YOLO object detection package
 
-- cd ~/catkin_ws/src
-- git clone https://github.com/jatan12/ROS_Yolo2D.git
-- cd ~/catkin_ws
-- catkin_make
-- roslaunch realsense2_camera rs_camera.launch
+This work is a fork of https://github.com/jatan12/ROS_Yolo2D.git.
 
-### Open up a new terminal, then:
-- conda activate
-- rosrun ROS_Yolo2D final_yolo.py
+## To get the object detection working with RealSense:
 
-### NB! Refer to the setup guide in order to install the necessary packages to get started
-
-https://docs.google.com/document/d/13qFxHlV3pAJqZAZfvzfcouMZbMDDu6xn5O5VixYNci8/edit
+- Refer to the setup guide _(setup.pdf)_ in order to install the necessary packages.
+- Use ```roslaunch realsense2_camera rs_camera.launch``` or some other image source.
+    - The launch file has the following arguments:
+        - ```camera_image``` - the input image topic
+        - ```yolo_image_out``` - the output image topic (with the bounding box)
+        - ```yolo_bounding_box_out``` - the output topic for bounding box coordinates
+- Then, use ```roslaunch ros_yolo yolo.launch``` to perform object detection.
+    - Due to a dependency issue, line 18 of _final_yolo.py_ will need to be changed accordingly.

@@ -1,38 +1,27 @@
 #!/usr/bin/env python3
 
-import roslib
 import rospy
 from std_msgs.msg import Header
-from std_msgs.msg import String, Int32MultiArray
-from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import Int32MultiArray
 from sensor_msgs.msg import Image
-IMAGE_WIDTH=1241
-IMAGE_HEIGHT=376
 
 # Don't refresh without key presses?
 freeze_detection = False
 # Publish bounding box data even when no objects found?
 publish_empty = False
 
-# Some magic code to use Python3
 import sys
-#sys.path.remove('/opt/ros/melodic/lib/python2.7/dist-packages')
-#print(sys.version, sys.version_info)
-import os
 
-print(os.path.dirname(os.path.abspath(__file__)))
-
-sys.path.extend(['/home/jyri/anaconda3/lib/python38.zip', 
-                '/home/jyri/anaconda3/lib/python3.8', 
-                '/home/jyri/anaconda3/lib/python3.8/lib-dynload', 
-                '/home/jyri/anaconda3/lib/python3.8/site-packages',
-                '/home/jyri/catkin_ws/src/ROS_Yolo2D/scripts'])
-# print(os.environ['PYTHONPATH'])
+# Due to dependency hell, this is needed:
+sys.path.extend(
+    [
+        "/home/jyri/catkin_ws/src/ros_yolo/scripts",
+    ]
+)
 print(sys.path)
 
 
 # Necessary Imports
-import os
 import time
 import cv2
 import torch
@@ -41,16 +30,30 @@ import torch.backends.cudnn as cudnn
 import numpy as np
 from models.experimental import attempt_load
 from utils.general import (
-    check_img_size, non_max_suppression, apply_classifier, scale_coords,
-    xyxy2xywh, plot_one_box, strip_optimizer, set_logging)
+    check_img_size,
+    non_max_suppression,
+    apply_classifier,
+    scale_coords,
+    xyxy2xywh,
+    plot_one_box,
+    strip_optimizer,
+    set_logging,
+)
 from utils.torch_utils import select_device, load_classifier, time_synchronized
 
 from matplotlib import pyplot as plt
 
-ros_image=0
+ros_image = 0
 
 
-def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True):
+def letterbox(
+    img,
+    new_shape=(640, 640),
+    color=(114, 114, 114),
+    auto=True,
+    scaleFill=False,
+    scaleup=True,
+):
     # Resize image to a 32-pixel-multiple rectangle https://github.com/ultralytics/yolov3/issues/232
     shape = img.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
@@ -79,18 +82,22 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale
         img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
+    img = cv2.copyMakeBorder(
+        img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color
+    )  # add border
     return img, ratio, (dw, dh)
 
-def loadimg(img):  
-    img_size=640
-    cap=None
-    path=None
+
+def loadimg(img):
+    img_size = 640
+    cap = None
+    path = None
     img0 = img
     img = letterbox(img0, new_shape=img_size)[0]
     img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
     img = np.ascontiguousarray(img)
     return path, img, img0, cap
+
 
 def detect(img):
 
@@ -100,17 +107,17 @@ def detect(img):
     cudnn.benchmark = True
     dataset = loadimg(img)
     # print(dataset[3])
-    #plt.imshow(dataset[2][:, :, ::-1])
-    names = model.module.names if hasattr(model, 'module') else model.names
-    #colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
-    #colors=[[0,255,0]]
-    augment = 'store_true'
+    # plt.imshow(dataset[2][:, :, ::-1])
+    names = model.module.names if hasattr(model, "module") else model.names
+    # colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
+    # colors=[[0,255,0]]
+    augment = "store_true"
     conf_thres = 0.3
     iou_thres = 0.45
-    classes = (0,1,2,3,5,7)
-    agnostic_nms = 'store_true'
+    classes = (0, 1, 2, 3, 5, 7)
+    agnostic_nms = "store_true"
     img = torch.zeros((1, 3, imgsz, imgsz), device=device)  # init img
-    _ = model(img.half() if half else img) if device.type != 'cpu' else None  # run once
+    _ = model(img.half() if half else img) if device.type != "cpu" else None  # run once
     path = dataset[0]
     img = dataset[1]
     im0s = dataset[2]
@@ -125,35 +132,45 @@ def detect(img):
     # Inference
     pred = model(img, augment=augment)[0]
     # Apply NMS
-    pred = non_max_suppression(pred, conf_thres, iou_thres, classes=classes, agnostic=agnostic_nms)
+    pred = non_max_suppression(
+        pred, conf_thres, iou_thres, classes=classes, agnostic=agnostic_nms
+    )
 
     view_img = 1
     save_txt = 1
-    save_conf = 'store_true'
+    save_conf = "store_true"
     time3 = time.time()
 
     bb_to_publish = []
 
     for i, det in enumerate(pred):  # detections per image
-        p, s, im0 = path, '', im0s
-        s += '%gx%g ' % img.shape[2:]  # print string
+        p, s, im0 = path, "", im0s
+        s += "%gx%g " % img.shape[2:]  # print string
         gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
         if det is not None:
-            #print(det)
+            # print(det)
             # Rescale boxes from img_size to im0 size
             det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
             # Print results
             for c in det[:, -1].unique():
                 n = (det[:, -1] == c).sum()  # detections per class
-                s += '%g %ss, ' % (n, names[int(c)])  # add to string
+                s += "%g %ss, " % (n, names[int(c)])  # add to string
                 # Write results
             for *xyxy, conf, cls in reversed(det):
                 if save_txt:  # Write to file
-                    xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                    line = (cls, conf, *xywh) if save_conf else (cls, *xywh)  # label format
+                    xywh = (
+                        (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn)
+                        .view(-1)
+                        .tolist()
+                    )  # normalized xywh
+                    line = (
+                        (cls, conf, *xywh) if save_conf else (cls, *xywh)
+                    )  # label format
                 if view_img:  # Add bbox to image
-                    label = '%s %.2f' % (names[int(cls)], conf)
-                    plot_one_box(xyxy, im0, label=label, color=[0,255,0], line_thickness=3)
+                    label = "%s %.2f" % (names[int(cls)], conf)
+                    plot_one_box(
+                        xyxy, im0, label=label, color=[0, 255, 0], line_thickness=3
+                    )
                     x = xyxy
                     c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
                     # print("XYXY:", c1, c2)
@@ -167,14 +184,15 @@ def detect(img):
     #     publish_bounding_boxes([])
 
     time4 = time.time()
-    print('************')
-    print('2-1', time2 - time1)
-    print('3-2', time3 - time2)
-    print('4-3', time4 - time3)
-    print('total',time4-time1)
+    print("************")
+    print("2-1", time2 - time1)
+    print("3-2", time3 - time2)
+    print("4-3", time4 - time3)
+    print("total", time4 - time1)
     out_img = im0[:, :, [2, 1, 0]]
-    ros_image=out_img
-    cv2.imshow('YOLOV5', out_img)
+    ros_image = out_img
+    out_img = cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB)
+    cv2.imshow("YOLOV5", out_img)
 
     if freeze_detection:
         k = cv2.waitKey(0) & 0xFF
@@ -191,44 +209,55 @@ def detect(img):
     #### Create CompressedIamge ####
     publish_image(im0)
 
+
 def image_callback_1(image):
     global ros_image
-    ros_image = np.frombuffer(image.data, dtype=np.uint8).reshape(image.height, image.width, -1)
+    ros_image = np.frombuffer(image.data, dtype=np.uint8).reshape(
+        image.height, image.width, -1
+    )
     with torch.no_grad():
         detect(ros_image)
-        
+
+
 def publish_image(imgdata):
-    image_temp=Image()
+    image_temp = Image(encoding="bgr8")
     header = Header(stamp=rospy.Time.now())
-    header.frame_id = 'map'
-    image_temp.height=IMAGE_HEIGHT
-    image_temp.width=IMAGE_WIDTH
-    image_temp.encoding='rgb8'
-    image_temp.data=np.array(imgdata).tostring()
-    image_temp.header=header
-    image_temp.step=1241*3
+    header.frame_id = "camera_link"
+    image_temp.header = header
+    image_temp.height = imgdata.shape[0]
+    image_temp.width = imgdata.shape[1]
+    # image_temp.data = np.array(imgdata).tobytes()
+    # image_temp.step = image_temp.width*3
+    # Inspiration from https://github.com/eric-wieser/ros_numpy/blob/master/src/ros_numpy/image.py.
+    contig = np.ascontiguousarray(imgdata)
+    image_temp.data = contig.tobytes()
+    image_temp.step = contig.strides[0]
     image_pub.publish(image_temp)
+
 
 def publish_bounding_boxes(xyxy):
     message = Int32MultiArray()
     message.data = xyxy
     bb_pub.publish(message)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     set_logging()
-    device = ''
+    device = ""
     device = select_device(device)
-    half = device.type != 'cpu'  # half precision only supported on CUDA
-    weights = 'yolov5s.pt'
+    half = device.type != "cpu"  # half precision only supported on CUDA
+    weights = "yolov5s.pt"
     imgsz = 640
     model = attempt_load(weights, map_location=device)  # load FP32 model
     imgsz = check_img_size(imgsz, s=model.stride.max())  # check img_size
     if half:
         model.half()  # to FP16
- 
-    rospy.init_node('ros_yolo')
+
+    rospy.init_node("ros_yolo")
     image_topic_1 = "/camera/color/image_raw"
-    rospy.Subscriber(image_topic_1, Image, image_callback_1, queue_size=1, buff_size=52428800)
-    image_pub = rospy.Publisher('/yolo_result_out', Image, queue_size=1)  
-    bb_pub = rospy.Publisher('/yolo_bounding_box', Int32MultiArray, queue_size=1)
+    rospy.Subscriber(
+        image_topic_1, Image, image_callback_1, queue_size=1, buff_size=52428800
+    )
+    image_pub = rospy.Publisher("/yolo_result_out", Image, queue_size=1)
+    bb_pub = rospy.Publisher("/yolo_bounding_box", Int32MultiArray, queue_size=1)
     rospy.spin()

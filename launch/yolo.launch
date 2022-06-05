@@ -1,0 +1,11 @@
+<launch>
+    <arg name="camera_image" default="camera/color/image_raw" doc="" />
+    <arg name="yolo_image_out" default="yolo_result_out" />
+    <arg name="yolo_bounding_box_out" default="yolo_bounding_box" />
+
+    <node pkg="ros_yolo" type="final_yolo.py" name="yolo" output="screen">
+        <remap from="camera_image" to="$(arg camera_image)" />
+        <remap from="yolo_image_out" to="$(arg yolo_image_out)" />
+        <remap from="yolo_bounding_box_out" to="$(arg yolo_bounding_box_out)" />
+    </node>
+</launch>
