@@ -261,11 +261,11 @@ if __name__ == "__main__":
     rospy.init_node("ros_yolo")
 
     # Show the output image?
-    show_image = rospy.get_param("ros_yolo/show_image", default=True)
+    show_image = rospy.get_param("~show_image", default=True)
     # Don't refresh without key presses?
-    freeze_detection = rospy.get_param("ros_yolo/freeze_detection", default=False)
+    freeze_detection = rospy.get_param("~freeze_detection", default=False)
     # Publish bounding box data even when no objects found?
-    publish_empty = rospy.get_param("ros_yolo/publish_empty", default=False)
+    publish_empty = rospy.get_param("~publish_empty", default=False)
 
     # The following topics will be remapped.
     camera_image_topic = "camera_image"
