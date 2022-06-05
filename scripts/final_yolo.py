@@ -5,6 +5,9 @@ from std_msgs.msg import Header
 from std_msgs.msg import Int32MultiArray
 from sensor_msgs.msg import Image
 
+# Initialize the global variables before getting the values from the parameter server.
+# Show the output image?
+show_image = True
 # Don't refresh without key presses?
 freeze_detection = False
 # Publish bounding box data even when no objects found?
@@ -18,7 +21,7 @@ sys.path.extend(
         "/home/jyri/catkin_ws/src/ros_yolo/scripts",
     ]
 )
-print(sys.path)
+# print(sys.path)
 
 
 # Necessary Imports
@@ -184,33 +187,35 @@ def detect(img):
     #     publish_bounding_boxes([])
 
     time4 = time.time()
-    print("************")
-    print("2-1", time2 - time1)
-    print("3-2", time3 - time2)
-    print("4-3", time4 - time3)
-    print("total", time4 - time1)
-    out_img = im0[:, :, [2, 1, 0]]
-    ros_image = out_img
-    out_img = cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB)
-    cv2.imshow("YOLOV5", out_img)
+    # print("************")
+    # print("2-1", time2 - time1)
+    # print("3-2", time3 - time2)
+    # print("4-3", time4 - time3)
+    # print("total", time4 - time1)
+    # rospy.loginfo("Rate = " + str(round(1 / (time4 - time1), 3)) + " Hz.")
+    if show_image:
 
-    if freeze_detection:
-        k = cv2.waitKey(0) & 0xFF
-        if k == ord("q"):
-            # Not sure whether the next line is necessary...
-            rospy.loginfo("Pressed 'q' to shut down.")
-            rospy.signal_shutdown("Pressed 'q' to shut down.")
-    else:
-        k = cv2.waitKey(1) & 0xFF
-        if k == ord("q"):
-            # Not sure whether the next line is necessary...
-            rospy.loginfo("Pressed 'q' to shut down.")
-            rospy.signal_shutdown("Pressed 'q' to shut down.")
-    #### Create CompressedIamge ####
+        out_img = im0[:, :, [2, 1, 0]]
+        out_img = cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB)
+        cv2.imshow("YOLOV5", out_img)
+
+        if freeze_detection:
+            k = cv2.waitKey(0) & 0xFF
+            if k == ord("q"):
+                # Not sure whether the next line is necessary...
+                rospy.loginfo("Pressed 'q' to shut down.")
+                rospy.signal_shutdown("Pressed 'q' to shut down.")
+        else:
+            k = cv2.waitKey(1) & 0xFF
+            if k == ord("q"):
+                # Not sure whether the next line is necessary...
+                rospy.loginfo("Pressed 'q' to shut down.")
+                rospy.signal_shutdown("Pressed 'q' to shut down.")
+    #### Create Image ####
     publish_image(im0)
 
 
-def image_callback_1(image):
+def image_callback(image):
     global ros_image
     ros_image = np.frombuffer(image.data, dtype=np.uint8).reshape(
         image.height, image.width, -1
@@ -254,10 +259,25 @@ if __name__ == "__main__":
         model.half()  # to FP16
 
     rospy.init_node("ros_yolo")
-    image_topic_1 = "/camera/color/image_raw"
-    rospy.Subscriber(
-        image_topic_1, Image, image_callback_1, queue_size=1, buff_size=52428800
+
+    # Show the output image?
+    show_image = rospy.get_param("ros_yolo/show_image", default=True)
+    # Don't refresh without key presses?
+    freeze_detection = rospy.get_param("ros_yolo/freeze_detection", default=False)
+    # Publish bounding box data even when no objects found?
+    publish_empty = rospy.get_param("ros_yolo/publish_empty", default=False)
+
+    # The following topics will be remapped.
+    camera_image_topic = "camera_image"
+    yolo_image_out_topic = "yolo_image_out"
+    yolo_bounding_box_out_topic = "yolo_bounding_box_out"
+
+    image_pub = rospy.Publisher(yolo_image_out_topic, Image, queue_size=1)
+    rospy.loginfo(f"Started publishing to topic {image_pub.resolved_name}.")
+    bb_pub = rospy.Publisher(yolo_bounding_box_out_topic, Int32MultiArray, queue_size=1)
+    rospy.loginfo(f"Started publishing to topic {bb_pub.resolved_name}.")
+    image_sub = rospy.Subscriber(
+        camera_image_topic, Image, image_callback, queue_size=1, buff_size=52428800
     )
-    image_pub = rospy.Publisher("/yolo_result_out", Image, queue_size=1)
-    bb_pub = rospy.Publisher("/yolo_bounding_box", Int32MultiArray, queue_size=1)
+    rospy.loginfo(f"Started subscribing to topic {image_sub.resolved_name}.")
     rospy.spin()
