@@ -2,9 +2,9 @@
     <arg name="show_image" default="True" doc="Whether to use cv2 to display the output image." />
     <arg name="freeze_detection" default="False" doc="Whether to freeze the detection on every frame; only works when show_image is True." />
     <arg name="publish_empty" default="False" doc="Whether to publish empty bounding boxes when no object are found." />
-    <arg name="camera_image" default="/camera/color/image_raw" doc="Input image topic" />
-    <arg name="yolo_image_out" default="/yolo_result_out" doc="Output image topic" />
-    <arg name="yolo_bounding_box_out" default="/yolo_bounding_box" doc="Output bounding box topic" />
+    <arg name="camera_image" default="camera/color/image_raw" doc="Input image topic" />
+    <arg name="yolo_image_out" default="yolo_result_out" doc="Output image topic" />
+    <arg name="yolo_bounding_box_out" default="yolo_bounding_box" doc="Output bounding box topic" />
 
     <node pkg="ros_yolo" type="final_yolo.py" name="ros_yolo" output="screen">
         <param name="show_image" value="$(arg show_image)" />
