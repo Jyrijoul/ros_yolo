@@ -97,7 +97,8 @@ def loadimg(img):
     path = None
     img0 = img
     img = letterbox(img0, new_shape=img_size)[0]
-    img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+    # img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+    img = img.transpose(2, 0, 1)
     img = np.ascontiguousarray(img)
     return path, img, img0, cap
 
@@ -195,8 +196,9 @@ def detect(img):
     # rospy.loginfo("Rate = " + str(round(1 / (time4 - time1), 3)) + " Hz.")
     if show_image:
 
-        out_img = im0[:, :, [2, 1, 0]]
-        out_img = cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB)
+        # out_img = im0[:, :, [2, 1, 0]]
+        out_img = im0
+        # out_img = cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB)
         cv2.imshow("YOLOV5", out_img)
 
         if freeze_detection:
@@ -225,9 +227,13 @@ def image_callback(image):
 
 
 def publish_image(imgdata):
-    image_temp = Image(encoding="bgr8")
+    # TODO: just read in image encoding.
+    if simulation:
+        image_temp = Image(encoding="bgr8")
+    else:
+        image_temp = Image(encoding="rgb8")
     header = Header(stamp=rospy.Time.now())
-    header.frame_id = "camera_link"
+    header.frame_id = output_frame
     image_temp.header = header
     image_temp.height = imgdata.shape[0]
     image_temp.width = imgdata.shape[1]
@@ -266,6 +272,10 @@ if __name__ == "__main__":
     freeze_detection = rospy.get_param("~freeze_detection", default=False)
     # Publish bounding box data even when no objects found?
     publish_empty = rospy.get_param("~publish_empty", default=False)
+    # Output coordinate frame
+    output_frame = rospy.get_param("~output_frame", default="camera_link")
+    # Simulation?
+    simulation = rospy.get_param("~simulation", default=True)
 
     # The following topics will be remapped.
     camera_image_topic = "camera_image"

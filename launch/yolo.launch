@@ -4,12 +4,17 @@
     <arg name="publish_empty" default="False" doc="Whether to publish empty bounding boxes when no object are found." />
     <arg name="camera_image" default="camera/color/image_raw" doc="Input image topic" />
     <arg name="yolo_image_out" default="yolo_result_out" doc="Output image topic" />
+    <arg name="output_frame" default="camera_link" doc="The output image coordinate frame" />
     <arg name="yolo_bounding_box_out" default="yolo_bounding_box" doc="Output bounding box topic" />
+    <arg name="simulation" default="true" doc="Whether the camera is simulated" />
 
     <node pkg="ros_yolo" type="final_yolo.py" name="ros_yolo" output="screen">
         <param name="show_image" value="$(arg show_image)" />
         <param name="freeze_detection" value="$(arg freeze_detection)" />
         <param name="publish_empty" value="$(arg publish_empty)" />
+        <param name="output_frame" value="$(arg output_frame)" />
+        <!-- The simulation parameter is needed due to differences between the real and simulated RealSense cameras. -->
+        <param name="simulation" value="$(arg simulation)" />
         
         <remap from="camera_image" to="$(arg camera_image)" />
         <remap from="yolo_image_out" to="$(arg yolo_image_out)" />
